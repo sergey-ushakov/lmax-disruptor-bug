@@ -26,19 +26,16 @@ public class DisruptorTest
     {
         ExecutorService executor = Executors.newCachedThreadPool();
 
-        disruptor = new Disruptor<>(Event::new, disruptorSize, executor, ProducerType.MULTI, new SleepingWaitStrategy());
-
-        BatchHandler<Event> bh1 = new BatchHandler<>(this::method1);
-        BatchHandler<Event> bh2 = new BatchHandler<>(this::method2);
+        disruptor = new Disruptor<>(Event::new, disruptorSize, executor, ProducerType.SINGLE, new SleepingWaitStrategy());
 
         disruptor
                 .handleEventsWith(
-                        new BatchingEventProcessor<>(disruptor.getRingBuffer().newBarrier(), disruptor.getRingBuffer(), bh1)
+                        new BatchingEventProcessor<>(disruptor.getRingBuffer().newBarrier(), disruptor.getRingBuffer(), this::method1)
                 )
                 .then(
                         (EventProcessorFactory<Event>) (
                         ringBuffer, barrierSequences) ->
-                        new BatchingEventProcessor<>(ringBuffer.newBarrier(barrierSequences), ringBuffer, bh2)
+                        new BatchingEventProcessor<>(ringBuffer.newBarrier(barrierSequences), ringBuffer, this::method2)
                 );
 
         disruptor.start();
@@ -94,7 +91,7 @@ public class DisruptorTest
             disruptor.publishEvent((event, sequence) -> {
                 event.id = finalOpId;
                 event.obj = obj;
-                
+
                 // todo: comment out to hide bug
                 event.str = str;
             });
