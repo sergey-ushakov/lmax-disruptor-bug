@@ -4,7 +4,7 @@ package disruptorbug;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.lmax.disruptor.SleepingWaitStrategy;
+import com.lmax.disruptor.BusySpinWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.EventProcessorFactory;
 import com.lmax.disruptor.dsl.ProducerType;
@@ -26,7 +26,7 @@ public class DisruptorTest
     {
         ExecutorService executor = Executors.newCachedThreadPool();
 
-        disruptor = new Disruptor<>(Event::new, disruptorSize, executor, ProducerType.SINGLE, new SleepingWaitStrategy());
+        disruptor = new Disruptor<>(Event::new, disruptorSize, executor, ProducerType.SINGLE, new BusySpinWaitStrategy());
 
         disruptor
                 .handleEventsWith(
@@ -46,11 +46,11 @@ public class DisruptorTest
     {
         try
         {
-            event.obj.toString();
+            event.testNPE();
         }
         catch (Exception e)
         {
-            System.err.println("id = " + opId);
+            System.err.println("id = " + opId + " " + event);
             e.printStackTrace();
             System.exit(-1);
         }
@@ -58,18 +58,7 @@ public class DisruptorTest
 
     private void method2(Event event)
     {
-        try
-        {
-            event.id = 0;
-            event.obj = null;
-            event.str = null;
-        }
-        catch (Exception e)
-        {
-            System.err.println("id = " + opId);
-            e.printStackTrace();
-            System.exit(-1);
-        }
+        event.cleanup();
     }
 
     @Test
@@ -80,21 +69,17 @@ public class DisruptorTest
         {
             long finalOpId = opId;
             // todo: change to int to hide bug
-            //int finalOpId = (int)opId; 
-            
-            
+            // int finalOpId = (int)opId;
+
             Integer obj = new Integer(123);
             // todo: uncomment to hide bug
             //Object obj = new Integer(123);
             String str = "str";
 
             disruptor.publishEvent((event, sequence) -> {
-                event.id = finalOpId;
-                event.obj = obj;
-
-                // todo: comment out to hide bug
-                event.str = str;
+                event.publish(finalOpId, obj, str);
             });
+
             opId++;
         }
 
