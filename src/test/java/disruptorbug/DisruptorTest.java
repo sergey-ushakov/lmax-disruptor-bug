@@ -82,12 +82,20 @@ public class DisruptorTest
         while (true)
         {
             long finalOpId = opId;
+            // todo: change to int to hide bug
+            //int finalOpId = (int)opId; 
+            
+            
             Integer obj = new Integer(123);
+            // todo: uncomment to hide bug
+            //Object obj = new Integer(123);
             String str = "str";
 
             disruptor.publishEvent((event, sequence) -> {
                 event.id = finalOpId;
                 event.obj = obj;
+                
+                // todo: comment out to hide bug
                 event.str = str;
             });
             opId++;

@@ -35,6 +35,8 @@ class BatchingEventProcessor<T> implements EventProcessor
  
         this.startTime = System.currentTimeMillis();
         ringBuffer = RingBuffer.createSingleProducer(StatusChangedEvent::new, 1024);
+        // todo: uncomment to hide bug 
+        //ringBuffer = RingBuffer.createMultiProducer(StatusChangedEvent::new, 1024);
     }
 
 
