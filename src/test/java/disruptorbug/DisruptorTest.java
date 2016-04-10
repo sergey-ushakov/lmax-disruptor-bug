@@ -6,7 +6,6 @@ import java.util.concurrent.Executors;
 
 import com.lmax.disruptor.BusySpinWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
-import com.lmax.disruptor.dsl.EventProcessorFactory;
 import com.lmax.disruptor.dsl.ProducerType;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,22 +26,11 @@ public class DisruptorTest
         ExecutorService executor = Executors.newCachedThreadPool();
 
         disruptor = new Disruptor<>(Event::new, disruptorSize, executor, ProducerType.SINGLE, new BusySpinWaitStrategy());
-
-        disruptor
-                .handleEventsWith(
-                        new BatchingEventProcessor<>(disruptor.getRingBuffer().newBarrier(), disruptor.getRingBuffer(), this::method1)
-                )
-                .then(
-                        (EventProcessorFactory<Event>) (
-                        ringBuffer, barrierSequences) ->
-                        new BatchingEventProcessor<>(ringBuffer.newBarrier(barrierSequences), ringBuffer, this::method2)
-                );
-
+        disruptor.handleEventsWith(this::handler1).then(this::handler2);
         disruptor.start();
     }
 
-
-    private void method1(Event event)
+    private void handler1(Event event, long sequence, boolean endOfBatch)
     {
         try
         {
@@ -56,10 +44,11 @@ public class DisruptorTest
         }
     }
 
-    private void method2(Event event)
+    private void handler2(Event event, long sequence, boolean endOfBatch)
     {
         event.cleanup();
     }
+
 
     @Test
     public void test() throws Exception
@@ -67,7 +56,8 @@ public class DisruptorTest
         opId = 0L;
         while (true)
         {
-            long finalOpId = opId;
+//            long finalOpId = opId;
+            long finalOpId = System.nanoTime();
             // todo: change to int to hide bug
             // int finalOpId = (int)opId;
 
@@ -76,9 +66,9 @@ public class DisruptorTest
             //Object obj = new Integer(123);
             String str = "str";
 
-            disruptor.publishEvent((event, sequence) -> {
-                event.publish(finalOpId, obj, str);
-            });
+            disruptor.publishEvent(
+                    (event, sequence) -> event.publish(finalOpId, obj, str)
+            );
 
             opId++;
         }

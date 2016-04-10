@@ -4,7 +4,7 @@ package disruptorbug;
 class Event
 {
     long id;
-    volatile Object obj;
+    Object obj;
     String str;
 
     // debug timings
@@ -12,11 +12,12 @@ class Event
     long publishFinished;
     long cleanupStarted;
     long cleanupFinished;
+    long testStarted;
+    long testFinished;
 
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return "Event{" +
                 "id=" + id +
                 ", obj=" + obj +
@@ -25,26 +26,31 @@ class Event
                 ", publishFinished=" + publishFinished +
                 ", cleanupStarted=" + cleanupStarted +
                 ", cleanupFinished=" + cleanupFinished +
+                ", testStarted=" + testStarted +
+                ", testFinished=" + testFinished +
                 '}';
     }
 
-
-    synchronized void publish(long id, Object obj, String str)
+    synchronized // CR
+    void publish(long id, Object obj, String str)
     {
         publishStarted = System.nanoTime();
         this.id = id;
         this.obj = obj;
-        // todo: uncomment this line to get differ 'magic' opId count
-        // this.str = str;
+        this.str = str;
         publishFinished = System.nanoTime();
     }
 
+    synchronized // CR
     void testNPE()
     {
+        testStarted = System.nanoTime();
         obj.toString();
+        testFinished = System.nanoTime();
     }
 
-    synchronized void cleanup()
+    synchronized // CR
+    void cleanup()
     {
         cleanupStarted = System.nanoTime();
         id = 0;
