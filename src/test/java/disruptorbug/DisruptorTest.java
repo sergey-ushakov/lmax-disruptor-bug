@@ -4,9 +4,8 @@ package disruptorbug;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.lmax.disruptor.SleepingWaitStrategy;
+import com.lmax.disruptor.BusySpinWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
-import com.lmax.disruptor.dsl.EventProcessorFactory;
 import com.lmax.disruptor.dsl.ProducerType;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,54 +25,30 @@ public class DisruptorTest
     {
         ExecutorService executor = Executors.newCachedThreadPool();
 
-        disruptor = new Disruptor<>(Event::new, disruptorSize, executor, ProducerType.MULTI, new SleepingWaitStrategy());
-
-        BatchHandler<Event> bh1 = new BatchHandler<>(this::method1);
-        BatchHandler<Event> bh2 = new BatchHandler<>(this::method2);
-
-        disruptor
-                .handleEventsWith(
-                        new BatchingEventProcessor<>(disruptor.getRingBuffer().newBarrier(), disruptor.getRingBuffer(), bh1)
-                )
-                .then(
-                        (EventProcessorFactory<Event>) (
-                        ringBuffer, barrierSequences) ->
-                        new BatchingEventProcessor<>(ringBuffer.newBarrier(barrierSequences), ringBuffer, bh2)
-                );
-
+        disruptor = new Disruptor<>(Event::new, disruptorSize, executor, ProducerType.SINGLE, new BusySpinWaitStrategy());
+        disruptor.handleEventsWith(this::handler1).then(this::handler2);
         disruptor.start();
     }
 
-
-    private void method1(Event event)
+    private void handler1(Event event, long sequence, boolean endOfBatch)
     {
         try
         {
-            event.obj.toString();
+            event.testNPE();
         }
         catch (Exception e)
         {
-            System.err.println("id = " + opId);
+            System.err.println("id = " + opId + " " + event);
             e.printStackTrace();
             System.exit(-1);
         }
     }
 
-    private void method2(Event event)
+    private void handler2(Event event, long sequence, boolean endOfBatch)
     {
-        try
-        {
-            event.id = 0;
-            event.obj = null;
-            event.str = null;
-        }
-        catch (Exception e)
-        {
-            System.err.println("id = " + opId);
-            e.printStackTrace();
-            System.exit(-1);
-        }
+        event.cleanup();
     }
+
 
     @Test
     public void test() throws Exception
@@ -81,23 +56,20 @@ public class DisruptorTest
         opId = 0L;
         while (true)
         {
-            long finalOpId = opId;
+//            long finalOpId = opId;
+            long finalOpId = System.nanoTime();
             // todo: change to int to hide bug
-            //int finalOpId = (int)opId; 
-            
-            
+            // int finalOpId = (int)opId;
+
             Integer obj = new Integer(123);
             // todo: uncomment to hide bug
             //Object obj = new Integer(123);
             String str = "str";
 
-            disruptor.publishEvent((event, sequence) -> {
-                event.id = finalOpId;
-                event.obj = obj;
-                
-                // todo: comment out to hide bug
-                event.str = str;
-            });
+            disruptor.publishEvent(
+                    (event, sequence) -> event.publish(finalOpId, obj, str)
+            );
+
             opId++;
         }
 
